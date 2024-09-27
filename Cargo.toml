@@ -1,0 +1,23 @@
+[package]
+name = "danmaku-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+confique = { version = "0.2.5", default-features = false, features = ["toml"] }
+eyre = "0.6.12"
+futures = "0.3.30"
+futures-util = "0.3.30"
+htmlize = { version = "1.0.5", features = ["unescape"] }
+logos = "0.14.2"
+parking_lot = "0.12.3"
+poem = { version = "3.1.0", features = ["websocket"] }
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.128"
+tokio = { version = "1.40.0", features = ["macros", "rt-multi-thread", "net", "signal"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+
+[profile.release]
+lto = true
+codegen-units = 1

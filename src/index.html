@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        #log {
+            width: 100%;
+            height: 300px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            overflow-y: scroll;
+            background-color: #f9f9f9;
+        }
+
+        #status {
+            color: green;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>WebSocket Client</h1>
+    <p>WebSocket Status: <span id="status">Disconnected</span></p>
+    <div id="log"></div>
+
+    <script>
+        // 根据当前页面的协议，判断是使用 ws 还是 wss
+        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const socketUrl = protocol + window.location.host + "/danmaku";
+
+        const statusElement = document.getElementById('status');
+        const logElement = document.getElementById('log');
+
+        // 创建 WebSocket 连接
+        const socket = new WebSocket(socketUrl);
+
+        // 监听连接打开事件
+        socket.onopen = function () {
+            statusElement.textContent = "Connected";
+            statusElement.style.color = "green";
+            logMessage("WebSocket connection opened.");
+        };
+
+        // 监听收到消息事件
+        socket.onmessage = function (event) {
+            logMessage("Message received: " + event.data);
+        };
+
+        // 监听连接关闭事件
+        socket.onclose = function () {
+            statusElement.textContent = "Disconnected";
+            statusElement.style.color = "red";
+            logMessage("WebSocket connection closed.");
+        };
+
+        // 监听错误事件
+        socket.onerror = function (error) {
+            logMessage("Error: " + error.message);
+        };
+
+        // 在页面中打印消息
+        function logMessage(message) {
+            const newMessage = document.createElement('p');
+            newMessage.textContent = message;
+            logElement.appendChild(newMessage);
+            logElement.scrollTop = logElement.scrollHeight; // 自动滚动到底部
+        }
+    </script>
+
+</body>
+
+</html>
