@@ -1,19 +1,26 @@
 use std::fmt::Display;
+use std::sync::Arc;
 
 use futures::StreamExt;
 use futures_util::SinkExt;
 use poem::web::websocket::{Message, WebSocket};
-use poem::web::{Data, RemoteAddr};
+use poem::web::{Data, Path, RemoteAddr};
 use poem::{handler, IntoResponse};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Danmaku {
-    pub text: String,
-    pub color: Option<String>,
-    pub size: Option<i32>,
-    pub sender: Option<String>,
+    pub text: Arc<str>,
+    pub color: Option<Arc<str>>,
+    pub size: Option<f64>,
+    pub sender: Option<Arc<str>>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DanmakuPacket {
+    pub group: i64,
+    pub danmaku: Danmaku,
 }
 
 impl Display for Danmaku {
@@ -41,17 +48,19 @@ impl Display for Danmaku {
 pub async fn endpoint(
     ws: WebSocket,
     peer: &RemoteAddr,
-    Data(channel): Data<&broadcast::Sender<Danmaku>>,
+    Path(group): Path<i64>,
+    Data(channel): Data<&broadcast::Sender<DanmakuPacket>>,
 ) -> impl IntoResponse {
     let peer = peer.clone();
-    tracing::info!("connection from {}", peer);
+    tracing::info!("connection from {} to group {}", peer, group);
     let channel = channel.clone();
     let mut recv = channel.subscribe();
-    ws.on_upgrade(|mut socket| async move {
+    ws.on_upgrade(move |mut socket| async move {
         loop {
             tokio::select! {
-                Ok(danmaku) = recv.recv() => {
-                    if let Ok(danmaku) = serde_json::to_string(&danmaku) {
+                Ok(packet) = recv.recv() => {
+                    if packet.group != group { continue; }
+                    if let Ok(danmaku) = serde_json::to_string(&packet.danmaku) {
                         let _ = socket.send(Message::Text(danmaku)).await;
                     }
                 }
@@ -60,7 +69,8 @@ pub async fn endpoint(
                     match msg {
                         Message::Text(msg) => {
                             if let Ok(danmaku) = serde_json::from_str::<Danmaku>(&msg) {
-                                channel.send(danmaku).expect("failed to send message");
+                                let packet = DanmakuPacket { group, danmaku };
+                                channel.send(packet).expect("failed to send message");
                             }
                         },
                         Message::Ping(payload) => {

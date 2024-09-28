@@ -8,8 +8,7 @@ use poem::{handler, IntoResponse};
 use serde::Deserialize;
 use tokio::sync::broadcast;
 
-use crate::config::Config;
-use crate::danmaku::Danmaku;
+use crate::danmaku::{Danmaku, DanmakuPacket};
 use crate::onebot::cqcode::cq_to_text;
 
 mod cqcode;
@@ -102,7 +101,7 @@ impl<'a> MessageSegment<'a> {
 pub async fn endpoint(
     ws: WebSocket,
     peer: &RemoteAddr,
-    Data(channel): Data<&broadcast::Sender<Danmaku>>,
+    Data(channel): Data<&broadcast::Sender<DanmakuPacket>>,
 ) -> impl IntoResponse {
     tracing::info!("connection from {}", peer);
     let channel = channel.clone();
@@ -113,8 +112,8 @@ pub async fn endpoint(
 
             if let WebSocketMessage::Text(msg) = msg {
                 match handle_message_event(msg).await {
-                    Ok(Some(danmaku)) => {
-                        channel.send(danmaku).expect("failed to send message");
+                    Ok(Some(packet)) => {
+                        channel.send(packet).expect("failed to send message");
                     }
                     Ok(None) => {}
                     Err(e) => tracing::error!("failed to handle message: {}", e),
@@ -125,31 +124,26 @@ pub async fn endpoint(
 }
 
 #[tracing::instrument]
-async fn handle_message_event(message: String) -> Result<Option<Danmaku>> {
+async fn handle_message_event(message: String) -> Result<Option<DanmakuPacket>> {
     let event: MessageEvent = serde_json::from_str(&message)?;
     if event.post_type != "message" {
         return Ok(None);
     }
-    if let Some(group_id) = event.group_id {
-        // Filter groups
-        let config = Config::get()?;
-        if !config.groups.contains(&group_id) {
-            return Ok(None);
-        }
-
+    if let Some(group) = event.group_id {
         if let Some(message) = event.message {
             let message = message.segments().join("");
             let message = message.trim();
-            let sender = event.sender.map(|sender| sender.name().to_string());
+            let sender = event.sender.map(|sender| sender.name().into());
             tracing::debug!("{:?} -> {}", sender, message);
 
             let danmaku = Danmaku {
-                text: message.to_string(),
+                text: message.into(),
                 color: None, // TODO: customize
                 size: None,
                 sender,
             };
-            return Ok(Some(danmaku));
+            let packet = DanmakuPacket { group, danmaku };
+            return Ok(Some(packet));
         }
     }
 

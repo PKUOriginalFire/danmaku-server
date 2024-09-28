@@ -4,77 +4,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebSocket Client</title>
+    <title>Danmaku WebSocket Viewer</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
         }
 
-        #log {
-            width: 100%;
-            height: 300px;
-            border: 1px solid #ccc;
+        #messages {
+            border: 1px solid #ddd;
             padding: 10px;
-            overflow-y: scroll;
-            background-color: #f9f9f9;
+            height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
         }
 
-        #status {
-            color: green;
-            font-weight: bold;
+        #messages div {
+            margin-bottom: 5px;
         }
     </style>
 </head>
 
 <body>
+    <h1>Danmaku WebSocket Viewer</h1>
+    <p>(For testing purposes only)</p>
 
-    <h1>WebSocket Client</h1>
-    <p>WebSocket Status: <span id="status">Disconnected</span></p>
-    <div id="log"></div>
+    <label for="idInput">Enter ID:</label>
+    <input type="text" id="idInput" placeholder="Enter danmaku ID">
+    <button id="connectBtn">Connect</button>
+
+    <div id="status">Status: Disconnected</div>
+
+    <div id="messages"></div>
 
     <script>
-        // 根据当前页面的协议，判断是使用 ws 还是 wss
-        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-        const socketUrl = protocol + window.location.host + "/danmaku";
+        let socket;
 
-        const statusElement = document.getElementById('status');
-        const logElement = document.getElementById('log');
+        document.getElementById('connectBtn').addEventListener('click', function () {
+            const id = document.getElementById('idInput').value;
+            if (!id) {
+                alert('Please enter an ID');
+                return;
+            }
 
-        // 创建 WebSocket 连接
-        const socket = new WebSocket(socketUrl);
+            // Check if the page is served over HTTP or HTTPS
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const wsUrl = `${protocol}${window.location.host}/danmaku/${id}`;
 
-        // 监听连接打开事件
-        socket.onopen = function () {
-            statusElement.textContent = "Connected";
-            statusElement.style.color = "green";
-            logMessage("WebSocket connection opened.");
-        };
+            // Close previous connection if it exists
+            if (socket) {
+                socket.close();
+            }
 
-        // 监听收到消息事件
-        socket.onmessage = function (event) {
-            logMessage("Message received: " + event.data);
-        };
+            // Open a new WebSocket connection
+            socket = new WebSocket(wsUrl);
 
-        // 监听连接关闭事件
-        socket.onclose = function () {
-            statusElement.textContent = "Disconnected";
-            statusElement.style.color = "red";
-            logMessage("WebSocket connection closed.");
-        };
+            // Update connection status
+            document.getElementById('status').textContent = 'Status: Connecting...';
 
-        // 监听错误事件
-        socket.onerror = function (error) {
-            logMessage("Error: " + error.message);
-        };
+            socket.onopen = function () {
+                document.getElementById('status').textContent = 'Status: Connected';
+            };
 
-        // 在页面中打印消息
-        function logMessage(message) {
-            const newMessage = document.createElement('p');
-            newMessage.textContent = message;
-            logElement.appendChild(newMessage);
-            logElement.scrollTop = logElement.scrollHeight; // 自动滚动到底部
-        }
+            socket.onmessage = function (event) {
+                const messageContainer = document.getElementById('messages');
+                const newMessage = document.createElement('div');
+                newMessage.textContent = event.data;
+                messageContainer.appendChild(newMessage);
+
+                // Automatically scroll to the bottom
+                messageContainer.scrollTop = messageContainer.scrollHeight;
+            };
+
+            socket.onclose = function () {
+                document.getElementById('status').textContent = 'Status: Disconnected';
+            };
+
+            socket.onerror = function (error) {
+                console.error('WebSocket error:', error);
+                document.getElementById('status').textContent = 'Status: Error';
+            };
+        });
     </script>
 
 </body>

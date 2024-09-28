@@ -7,7 +7,7 @@ use poem::{get, handler, EndpointExt, IntoResponse, Route, Server};
 use tokio::sync::broadcast;
 use tracing_subscriber::EnvFilter;
 
-use crate::danmaku::Danmaku;
+use crate::danmaku::DanmakuPacket;
 
 mod config;
 mod danmaku;
@@ -19,7 +19,7 @@ async fn main() -> Result<()> {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
-    let config = config::Config::get()?;
+    let config = config::Config::load()?;
 
     // gracefully shutdown on ctrl-c or SIGTERM
     tokio::spawn(async move {
@@ -39,11 +39,11 @@ async fn main() -> Result<()> {
     });
 
     // server
-    let channel = broadcast::channel::<Danmaku>(32).0;
+    let channel = broadcast::channel::<DanmakuPacket>(32).0;
     let app = Route::new()
         .at("/", get(index))
         .at("/onebot", get(onebot::endpoint.data(channel.clone())))
-        .at("/danmaku", get(danmaku::endpoint.data(channel.clone())))
+        .at("/danmaku/:id", get(danmaku::endpoint.data(channel.clone())))
         .with(NormalizePath::new(TrailingSlash::Trim));
     tokio::spawn(echo(channel));
 
@@ -60,9 +60,9 @@ fn index() -> impl IntoResponse {
 }
 
 #[tracing::instrument]
-async fn echo(channel: broadcast::Sender<Danmaku>) {
+async fn echo(channel: broadcast::Sender<DanmakuPacket>) {
     let mut channel = channel.subscribe();
-    while let Ok(danmaku) = channel.recv().await {
-        tracing::info!("{}", danmaku);
+    while let Ok(packet) = channel.recv().await {
+        tracing::info!("{} -> {}", packet.group, packet.danmaku);
     }
 }

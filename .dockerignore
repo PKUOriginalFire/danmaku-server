@@ -1,5 +1,3 @@
 /target
-/config
 /napcat
-config.toml
 .env

@@ -14,8 +14,6 @@ services:
       - ./napcat/config:/app/napcat/config
       - ./napcat/data:/app/.config/QQ
       - ./napcat/logs:/app/napcat/logs
-    # ports:
-    #   - 6099:6099
     restart: always
     depends_on:
       - danmaku-server
