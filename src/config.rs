@@ -1,7 +1,8 @@
 use std::net::IpAddr;
+use std::num::NonZeroU32;
+use std::sync::{Arc, OnceLock};
 
 use envconfig::Envconfig;
-use eyre::Result;
 
 #[derive(Envconfig, Debug)]
 pub struct Config {
@@ -12,13 +13,21 @@ pub struct Config {
     /// Port to listen on
     #[envconfig(from = "DANMAKU_PORT", default = "5098")]
     pub port: u16,
+
+    /// Client message rate limit (per second)
+    #[envconfig(from = "DANMAKU_RATE_LIMIT", default = "25")]
+    pub rate_limit: NonZeroU32,
 }
 
 impl Config {
     /// Load the config from environment variables
-    pub fn load() -> Result<Self> {
-        let config = Config::init_from_env()?;
-        tracing::debug!("loaded config: {:?}", config);
-        Ok(config)
+    pub fn load() -> Arc<Self> {
+        static CONFIG: OnceLock<Arc<Config>> = OnceLock::new();
+        let config = CONFIG.get_or_init(|| {
+            let config = Config::init_from_env().expect("failed to load config");
+            tracing::debug!("loaded config: {:?}", config);
+            Arc::new(config)
+        });
+        config.clone()
     }
 }

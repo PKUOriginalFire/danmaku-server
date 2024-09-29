@@ -27,6 +27,4 @@ services:
       - .env
     ports:
       - 5098:5098
-    volumes:
-      - ./config:/etc/danmaku-server
     restart: always

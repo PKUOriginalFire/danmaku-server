@@ -19,7 +19,7 @@ async fn main() -> Result<()> {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
-    let config = config::Config::load()?;
+    let config = config::Config::load();
 
     // gracefully shutdown on ctrl-c or SIGTERM
     tokio::spawn(async move {
