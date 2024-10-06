@@ -89,7 +89,7 @@
             danmaku.emit(dm);
         }
 
-        const id = window.location.pathname.split('/').pop();
+        const id = window.location.pathname.split('/').filter(Boolean).pop();
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         const wsUrl = `${protocol}${window.location.host}/danmaku/${id}`;
 

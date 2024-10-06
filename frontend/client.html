@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>元火弹幕服务</title>
+    <style>
+        @import "npm:normalize.css";
+
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+        }
+
+        #container {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .message {
+            padding: 5px;
+            border-bottom: 1px solid #ccc;
+        }
+
+        #input-container {
+            width: 100%;
+            background: #fff;
+            padding: 10px;
+            box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            box-sizing: border-box;
+        }
+
+        #input-container input,
+        #input-container button {
+            padding: 10px;
+            flex: 1;
+            box-sizing: border-box;
+        }
+
+        #input-container input[type="text"]:first-child {
+            flex: 1 1 20%;
+        }
+
+        #input-container input[type="text"]:nth-child(2) {
+            flex: 1 1 60%;
+        }
+
+        #input-container button {
+            flex: 1 1 20%;
+        }
+
+        @media (max-width: 600px) {
+
+            #input-container input[type="text"]:first-child,
+            #input-container input[type="text"]:nth-child(2),
+            #input-container button {
+                flex: 1 1 100%;
+            }
+        }
+
+        .error {
+            color: red;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container"></div>
+
+    <script type="module">
+        import { render } from 'preact';
+        import { useEffect, useRef, useState } from 'preact/hooks';
+        import { html } from 'htm/preact';
+
+        const DanmakuApp = () => {
+            const [messages, setMessages] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [inputValue, setInputValue] = useState('');
+            const [senderName, setSenderName] = useState('元火子');
+            const [error, setError] = useState('');
+            const reconnectAttempts = useRef(0);
+            const socket = useRef(null);
+            const containerRef = useRef(null);
+            const MESSAGE_LIMIT = 100;
+            const MAX_MESSAGE_LENGTH = 50;
+
+            const showMessage = (msg) => {
+                setMessages((prevMessages) => {
+                    const newMessages = [...prevMessages, msg];
+                    if (newMessages.length > MESSAGE_LIMIT) newMessages.shift();
+                    return newMessages;
+                });
+            };
+
+            const sendMessage = () => {
+                if (inputValue.length > MAX_MESSAGE_LENGTH) {
+                    setError(`弹幕长度不能超过${MAX_MESSAGE_LENGTH}字符`);
+                    return;
+                }
+                if (socket.current && inputValue.trim() && senderName.trim()) {
+                    socket.current.send(JSON.stringify({ text: inputValue, sender: senderName }));
+                    setInputValue('');
+                    setError('');
+                }
+            };
+
+            useEffect(() => {
+                const connectWebSocket = () => {
+                    const id = window.location.pathname.split('/').filter(Boolean).pop();
+                    const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+                    const wsUrl = `${protocol}${window.location.host}/danmaku/${id}`;
+                    socket.current = new WebSocket(wsUrl);
+
+                    socket.current.onopen = () => {
+                        setLoading(false);
+                        reconnectAttempts.current = 0;
+                        showMessage({ text: '元火弹幕姬已连接~' });
+                    };
+
+                    socket.current.onmessage = (event) => {
+                        const data = JSON.parse(event.data);
+                        showMessage(data);
+                    };
+
+                    socket.current.onclose = () => {
+                        setLoading(true);
+                        showMessage({ text: '元火弹幕姬已断开~' });
+                        const reconnectDelay = Math.min(30000, Math.pow(2, reconnectAttempts.current) * 1000);
+                        setTimeout(connectWebSocket, reconnectDelay);
+                        reconnectAttempts.current++;
+                    };
+
+                    socket.current.onerror = (error) => {
+                        socket.current.close();
+                    };
+                };
+
+                connectWebSocket();
+
+                return () => {
+                    if (socket.current) socket.current.close();
+                };
+            }, []);
+
+            useEffect(() => {
+                if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight;
+            }, [messages]);
+
+            return html`
+                <div id="container" ref=${containerRef}>
+                    ${loading && html`<div id="loading">Loading...</div>`}
+                    ${messages.map(({ text, sender }) => html`
+                        <p class="message">
+                            ${sender && html`<strong>${sender}</strong>`}
+                            <span>${sender ? `: ${text}` : text}</span>
+                        </p>
+                    `)}
+                </div>
+                <div id="input-container">
+                    <input
+                        type="text"
+                        value=${senderName}
+                        onInput=${(e) => setSenderName(e.target.value)}
+                        placeholder="输入昵称..."
+                    />
+                    <input
+                        type="text"
+                        value=${inputValue}
+                        onInput=${(e) => setInputValue(e.target.value)}
+                        onKeyDown=${(e) => e.key === 'Enter' && sendMessage()}
+                        placeholder="输入弹幕..."
+                    />
+                    <button onClick=${sendMessage}>发送</button>
+                    ${error && html`<div class="error">${error}</div>`}
+                </div>
+            `;
+        };
+
+        render(html`<${DanmakuApp} />`, document.body);
+    </script>
+</body>
+
+</html>

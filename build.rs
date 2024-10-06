@@ -2,6 +2,7 @@ use std::{io, process::Command};
 
 fn main() {
     println!("cargo:rerun-if-changed=frontend/index.html");
+    println!("cargo:rerun-if-changed=frontend/client.html");
     println!("cargo:rerun-if-changed=frontend/package.json");
     Command::new("yarn")
         .current_dir("frontend")
