@@ -46,7 +46,32 @@ docker compose up -d
 
 ## 连接到弹幕服务
 
-### 弹幕客户端
+### 内置弹幕客户端
+
+弹幕服务内置网页弹幕客户端，可用于 OBS 等直播软件的弹幕显示。服务启动后，可通过浏览器访问弹幕服务的 `5098` 端口查看弹幕：
+
+```text
+http://<danmaku-server>:5098/<group>
+```
+
+其中 `<danmaku-server>` 为弹幕服务的 IP 地址，`<group>` 为监听的弹幕群组（在 OneBot 上游中，对应群号）。访问成功后，页面会显示该群组下的弹幕消息。
+
+可以通过 URL 参数指定客户端的配置项：
+
+| 参数 | 默认值 | 描述 |
+| --- | --- | --- |
+| `defaultColor` | `white` | 弹幕文本颜色默认值，支持 CSS 颜色值 |
+| `deafultSize` | `40` | 弹幕文本大小默认值，单位为像素 |
+| `speed` | `144` | 弹幕滚动速度，单位为像素/秒 |
+| `font` | `sans-serif` | 弹幕文本字体 |
+
+例如，以下 URL 将打开一个白色、大小为 40px 的弹幕客户端：
+
+```text
+http://<danmaku-server>:5098/<group>?defaultColor=white&defaultSize=40
+```
+
+### 自定义弹幕客户端
 
 服务启动后，WebSocket 服务将在本地 `5098` 端口（可通过环境变量自定义）监听客户端连接。客户端可以通过以下 WebSocket 地址连接至弹幕服务：
 

@@ -1,0 +1,20 @@
+{
+  "name": "danmaku-frontend",
+  "version": "1.0.0",
+  "description": "Danmaku client",
+  "packageManager": "yarn@1.22.22",
+  "browserslist": "> 0.5%, last 2 versions, not dead",
+  "source": "index.html",
+  "scripts": {
+    "start": "parcel",
+    "build": "parcel build"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "danmaku": "^2.0.7",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "parcel": "^2.12.0"
+  }
+}

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>元火弹幕服务</title>
+    <style>
+        #container {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: hsl(360, 100%, 90%);
+            text-align: center;
+        }
+
+        .spinner {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid hsl(360, 100%, 90%);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 2s linear infinite;
+            margin-bottom: 10px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container"></div>
+    <div id="loading">
+        <div class="spinner"></div>
+        加载中...
+    </div>
+    <script type="module">
+        import Danmaku from 'danmaku';
+        import { z } from 'zod';
+
+        const configSchema = z.object({
+            defaultColor: z.string().catch('white'),
+            defaultSize: z.coerce.number().catch(40),
+            speed: z.coerce.number().catch(144),
+            font: z.string().catch('sans-serif'),
+        });
+
+        const params = new URLSearchParams(window.location.search);
+        const config = configSchema.parse(Object.fromEntries(params));
+        console.debug('Config loaded:', config);
+
+        const danmaku = new Danmaku({
+            container: document.getElementById('container'),
+            engine: 'dom',
+            speed: config.speed,
+        });
+        danmaku.show();
+        window.addEventListener('resize', () => danmaku.resize());
+
+        function sendMessage(msg) {
+            const color = msg.color ?? config.defaultColor;
+            const size = msg.size ?? config.defaultSize;
+            const dm = {
+                text: msg.text,
+                style: {
+                    fontFamily: config.font,
+                    fontSize: `${size}px`,
+                    fontWeight: 'bold',
+                    color,
+                    textShadow: '#000 1px 0px 1px, #000 0px 1px 1px, #000 0px -1px 1px, #000 -1px 0px 1px'
+                }
+            };
+            console.debug('Emit danmaku: ', dm);
+            danmaku.emit(dm);
+        }
+
+        const id = window.location.pathname.split('/').pop();
+        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const wsUrl = `${protocol}${window.location.host}/danmaku/${id}`;
+
+        let socket;
+        let reconnectAttempts = 0;
+
+        function connectWebSocket() {
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = () => {
+                reconnectAttempts = 0;
+                document.getElementById('loading').style.display = 'none';
+                console.debug('WebSocket connected');
+                sendMessage({
+                    text: '元火弹幕姬已连接~',
+                    color: 'hsl(360, 100%, 90%)',
+                });
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                console.debug('WebSocket message:', data);
+                sendMessage(data);
+            };
+
+            socket.onclose = () => {
+                document.getElementById('loading').style.display = 'block';
+                sendMessage({
+                    text: '元火弹幕姬已断开~',
+                    color: 'hsl(360, 100%, 90%)',
+                });
+                const reconnectDelay = Math.min(30000, Math.pow(2, reconnectAttempts) * 1000);
+                console.log(`WebSocket closed, reconnect in ${reconnectDelay}ms`);
+                setTimeout(connectWebSocket, reconnectDelay);
+                reconnectAttempts++;
+            };
+
+            socket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                socket.close();
+            };
+        }
+
+        connectWebSocket();
+    </script>
+</body>
+
+</html>

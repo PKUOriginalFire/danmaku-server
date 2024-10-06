@@ -41,7 +41,7 @@ async fn main() -> Result<()> {
     // server
     let channel = broadcast::channel::<DanmakuPacket>(32).0;
     let app = Route::new()
-        .at("/", get(index))
+        .at("/:id", get(index))
         .at("/onebot", get(onebot::endpoint.data(channel.clone())))
         .at("/danmaku/:id", get(danmaku::endpoint.data(channel.clone())))
         .with(NormalizePath::new(TrailingSlash::Trim));
@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
 
 #[handler]
 fn index() -> impl IntoResponse {
-    Html(include_str!("index.html"))
+    Html(include_str!("../frontend/dist/index.html"))
 }
 
 #[tracing::instrument]

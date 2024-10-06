@@ -1,5 +1,6 @@
 use std::fmt::Display;
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures::StreamExt;
 use futures_util::SinkExt;
@@ -47,7 +48,7 @@ impl Display for Danmaku {
 }
 
 #[handler]
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip(ws, channel))]
 pub async fn endpoint(
     ws: WebSocket,
     peer: &RemoteAddr,
@@ -63,6 +64,7 @@ pub async fn endpoint(
     let config = Config::load();
     ws.on_upgrade(move |mut socket| async move {
         let rate_limiter = RateLimiter::direct(Quota::per_second(config.rate_limit));
+        let mut ping = tokio::time::interval(Duration::from_secs(30));
         loop {
             tokio::select! {
                 // From upstream
@@ -70,6 +72,7 @@ pub async fn endpoint(
                     if packet.group != group { continue; }
                     if let Ok(danmaku) = serde_json::to_string(&packet.danmaku) {
                         let _ = socket.send(Message::Text(danmaku)).await;
+                        tracing::debug!("{} -> {}", packet.group, packet.danmaku);
                     }
                 }
 
@@ -79,7 +82,8 @@ pub async fn endpoint(
                     match msg {
                         Message::Text(msg) => {
                             if rate_limiter.check().is_err() {
-                                return; // rate limit exceeded, close the connection
+                                tracing::warn!("rate limit exceeded, closing connection");
+                                break; // rate limit exceeded, close the connection
                             }
 
                             if let Ok(danmaku) = serde_json::from_str::<Danmaku>(&msg) {
@@ -89,7 +93,8 @@ pub async fn endpoint(
                         },
                         Message::Binary(msg) => {
                             if rate_limiter.check().is_err() {
-                                return; // rate limit exceeded, close the connection
+                                tracing::warn!("rate limit exceeded, closing connection");
+                                break; // rate limit exceeded, close the connection
                             }
 
                             if let Ok(danmaku) = serde_json::from_slice::<Danmaku>(&msg) {
@@ -99,18 +104,28 @@ pub async fn endpoint(
                         }
                         Message::Ping(payload) => {
                             let _ = socket.send(Message::Pong(payload)).await;
+                            tracing::debug!("pong");
                         },
                         Message::Close(close) => {
                             tracing::info!("connection from {} closed: {:?}", peer, close);
-                            return;
+                            break;
                         },
                         _ => {}
                     }
                 }
 
+                // Ping
+                _ = ping.tick() => {
+                    let _ = socket.send(Message::Ping(vec![])).await;
+                    tracing::debug!("ping");
+                }
+
                 // On error
-                else => { return }
+                else => { break }
             }
+        }
+        if let Err(e) = socket.close().await {
+            tracing::error!("failed to close connection: {}", e);
         }
     })
 }
