@@ -17,6 +17,10 @@ pub struct Config {
     /// Client message rate limit (per second)
     #[envconfig(from = "DANMAKU_RATE_LIMIT", default = "25")]
     pub rate_limit: NonZeroU32,
+
+    // Danmaku max length
+    #[envconfig(from = "DANMAKU_MAX_LENGTH", default = "50")]
+    pub max_length: usize,
 }
 
 impl Config {

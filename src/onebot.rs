@@ -8,6 +8,7 @@ use poem::{handler, IntoResponse};
 use serde::Deserialize;
 use tokio::sync::broadcast;
 
+use crate::config::Config;
 use crate::danmaku::{Danmaku, DanmakuPacket};
 use crate::onebot::cqcode::cq_to_text;
 
@@ -105,13 +106,14 @@ pub async fn endpoint(
 ) -> impl IntoResponse {
     tracing::info!("connection from {}", peer);
     let channel = channel.clone();
+    let config = Config::load();
     ws.on_upgrade(|mut socket| async move {
         while let Some(msg) = socket.next().await {
             let Ok(msg) = msg else { return };
             tracing::debug!("got message: {:?}", msg);
 
             if let WebSocketMessage::Text(msg) = msg {
-                match handle_message_event(msg).await {
+                match handle_message_event(msg, &config).await {
                     Ok(Some(packet)) => {
                         channel.send(packet).expect("failed to send message");
                     }
@@ -124,7 +126,7 @@ pub async fn endpoint(
 }
 
 #[tracing::instrument]
-async fn handle_message_event(message: String) -> Result<Option<DanmakuPacket>> {
+async fn handle_message_event(message: String, config: &Config) -> Result<Option<DanmakuPacket>> {
     let event: MessageEvent = serde_json::from_str(&message)?;
     if event.post_type != "message" {
         return Ok(None);
@@ -133,6 +135,9 @@ async fn handle_message_event(message: String) -> Result<Option<DanmakuPacket>> 
         if let Some(message) = event.message {
             let message = message.segments().join("");
             let message = message.trim();
+            if message.chars().count() > config.max_length {
+                return Ok(None);
+            }
             let sender = event.sender.map(|sender| sender.name().into());
             tracing::debug!("{:?} -> {}", sender, message);
 

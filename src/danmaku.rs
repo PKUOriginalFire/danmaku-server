@@ -87,17 +87,7 @@ pub async fn endpoint(
                             }
 
                             if let Ok(danmaku) = serde_json::from_str::<Danmaku>(&msg) {
-                                let packet = DanmakuPacket { group, danmaku };
-                                channel.send(packet).expect("failed to send message");
-                            }
-                        },
-                        Message::Binary(msg) => {
-                            if rate_limiter.check().is_err() {
-                                tracing::warn!("rate limit exceeded, closing connection");
-                                break; // rate limit exceeded, close the connection
-                            }
-
-                            if let Ok(danmaku) = serde_json::from_slice::<Danmaku>(&msg) {
+                                if danmaku.text.chars().count() > config.max_length { continue; }
                                 let packet = DanmakuPacket { group, danmaku };
                                 channel.send(packet).expect("failed to send message");
                             }
@@ -105,11 +95,11 @@ pub async fn endpoint(
                         Message::Ping(payload) => {
                             let _ = socket.send(Message::Pong(payload)).await;
                             tracing::debug!("pong");
-                        },
+                        }
                         Message::Close(close) => {
                             tracing::info!("connection from {} closed: {:?}", peer, close);
                             break;
-                        },
+                        }
                         _ => {}
                     }
                 }
