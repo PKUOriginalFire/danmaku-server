@@ -21,6 +21,10 @@ pub struct Config {
     // Danmaku max length
     #[envconfig(from = "DANMAKU_MAX_LENGTH", default = "50")]
     pub max_length: usize,
+
+    /// Danmaku deduplication window (in seconds)
+    #[envconfig(from = "DANMAKU_DEDUP_WINDOW", default = "5")]
+    pub dedup_window: u64,
 }
 
 impl Config {
