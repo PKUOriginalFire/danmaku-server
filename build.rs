@@ -1,4 +1,5 @@
-use std::{io, process::Command};
+use std::io;
+use std::process::Command;
 
 fn main() {
     println!("cargo:rerun-if-changed=frontend/index.html");

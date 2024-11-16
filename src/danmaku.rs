@@ -8,8 +8,10 @@ use governor::{Quota, RateLimiter};
 use poem::web::websocket::{Message, WebSocket};
 use poem::web::{Data, Path, RemoteAddr};
 use poem::{handler, IntoResponse};
+use ring_channel::RingSender;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
+use tokio::sync::broadcast::error::RecvError;
 
 use crate::config::Config;
 
@@ -48,18 +50,19 @@ impl Display for Danmaku {
 }
 
 #[handler]
-#[tracing::instrument(skip(ws, channel))]
+#[tracing::instrument(skip(ws, sink))]
 pub async fn endpoint(
     ws: WebSocket,
     peer: &RemoteAddr,
     Path(group): Path<i64>,
-    Data(channel): Data<&broadcast::Sender<DanmakuPacket>>,
+    Data(source): Data<&Arc<broadcast::Receiver<DanmakuPacket>>>,
+    Data(sink): Data<&RingSender<DanmakuPacket>>,
 ) -> impl IntoResponse {
     let peer = peer.clone();
     tracing::info!("connection from {} to group {}", peer, group);
 
-    let channel = channel.clone();
-    let mut recv = channel.subscribe();
+    let mut source = source.resubscribe();
+    let sink = sink.clone();
 
     let config = Config::load();
     ws.on_upgrade(move |mut socket| async move {
@@ -68,11 +71,17 @@ pub async fn endpoint(
         loop {
             tokio::select! {
                 // From upstream
-                Ok(packet) = recv.recv() => {
-                    if packet.group != group { continue; }
-                    if let Ok(danmaku) = serde_json::to_string(&packet.danmaku) {
-                        let _ = socket.send(Message::Text(danmaku)).await;
-                        tracing::debug!("{} -> {}", packet.group, packet.danmaku);
+                packet = source.recv() => {
+                    match packet {
+                        Ok(packet) => {
+                            if packet.group != group { continue; }
+                            if let Ok(danmaku) = serde_json::to_string(&packet.danmaku) {
+                                let _ = socket.send(Message::Text(danmaku)).await;
+                                tracing::debug!("{} -> {}", packet.group, packet.danmaku);
+                            }
+                        }
+                        Err(RecvError::Lagged(_)) => continue,
+                        Err(_) => break,
                     }
                 }
 
@@ -89,7 +98,7 @@ pub async fn endpoint(
                             if let Ok(danmaku) = serde_json::from_str::<Danmaku>(&msg) {
                                 if danmaku.text.chars().count() > config.max_length { continue; }
                                 let packet = DanmakuPacket { group, danmaku };
-                                channel.send(packet).expect("failed to send message");
+                                sink.send(packet).expect("all middleware tasks are gone");
                             }
                         }
                         Message::Ping(payload) => {

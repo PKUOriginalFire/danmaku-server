@@ -5,8 +5,8 @@ use futures_util::StreamExt;
 use poem::web::websocket::{Message as WebSocketMessage, WebSocket};
 use poem::web::{Data, RemoteAddr};
 use poem::{handler, IntoResponse};
+use ring_channel::RingSender;
 use serde::Deserialize;
-use tokio::sync::broadcast;
 
 use crate::config::Config;
 use crate::danmaku::{Danmaku, DanmakuPacket};
@@ -102,10 +102,10 @@ impl<'a> MessageSegment<'a> {
 pub async fn endpoint(
     ws: WebSocket,
     peer: &RemoteAddr,
-    Data(channel): Data<&broadcast::Sender<DanmakuPacket>>,
+    Data(sink): Data<&RingSender<DanmakuPacket>>,
 ) -> impl IntoResponse {
     tracing::info!("connection from {}", peer);
-    let channel = channel.clone();
+    let sink = sink.clone();
     let config = Config::load();
     ws.on_upgrade(|mut socket| async move {
         while let Some(msg) = socket.next().await {
@@ -115,7 +115,7 @@ pub async fn endpoint(
             if let WebSocketMessage::Text(msg) = msg {
                 match handle_message_event(msg, &config).await {
                     Ok(Some(packet)) => {
-                        channel.send(packet).expect("failed to send message");
+                        sink.send(packet).expect("all middleware tasks are gone");
                     }
                     Ok(None) => {}
                     Err(e) => tracing::error!("failed to handle message: {}", e),

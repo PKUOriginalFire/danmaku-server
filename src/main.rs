@@ -1,16 +1,21 @@
+use std::sync::Arc;
+
 use eyre::Result;
 use futures::FutureExt;
 use poem::listener::TcpListener;
 use poem::middleware::{NormalizePath, TrailingSlash};
 use poem::web::Html;
 use poem::{get, handler, EndpointExt, IntoResponse, Route, Server};
+use ring_channel::ring_channel;
 use tokio::sync::broadcast;
 use tracing_subscriber::EnvFilter;
 
 use crate::danmaku::DanmakuPacket;
+use crate::middleware::run_middleware;
 
 mod config;
 mod danmaku;
+mod middleware;
 mod onebot;
 
 #[tokio::main]
@@ -39,14 +44,22 @@ async fn main() -> Result<()> {
     });
 
     // server
-    let channel = broadcast::channel::<DanmakuPacket>(32).0;
+    // upstream -|ring_channel|-> middlewares -|broadcast|-> downstream
+    let (source, middle) = ring_channel::<DanmakuPacket>(32.try_into().unwrap());
+    let sink = broadcast::channel::<DanmakuPacket>(32).0;
+    tokio::spawn(run_middleware(middle, sink.clone()));
+
     let app = Route::new()
         .at("/:id", get(index))
         .at("/client/:id", get(client))
-        .at("/onebot", get(onebot::endpoint.data(channel.clone())))
-        .at("/danmaku/:id", get(danmaku::endpoint.data(channel.clone())))
+        .at("/onebot", get(onebot::endpoint.data(source.clone())))
+        .at(
+            "/danmaku/:id",
+            get(danmaku::endpoint
+                .data(source)
+                .data(Arc::new(sink.subscribe()))),
+        )
         .with(NormalizePath::new(TrailingSlash::Trim));
-    tokio::spawn(echo(channel));
 
     tracing::info!("listening on {}:{}", config.listen, config.port);
     Server::new(TcpListener::bind((config.listen, config.port)))
@@ -63,12 +76,4 @@ fn index() -> impl IntoResponse {
 #[handler]
 fn client() -> impl IntoResponse {
     Html(include_str!("../frontend/dist/client.html"))
-}
-
-#[tracing::instrument]
-async fn echo(channel: broadcast::Sender<DanmakuPacket>) {
-    let mut channel = channel.subscribe();
-    while let Ok(packet) = channel.recv().await {
-        tracing::info!("{} -> {}", packet.group, packet.danmaku);
-    }
 }
