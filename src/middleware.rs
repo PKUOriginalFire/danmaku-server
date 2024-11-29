@@ -4,16 +4,19 @@ use std::vec;
 
 use futures::StreamExt;
 use governor::{DefaultKeyedRateLimiter, Quota};
+use regex::RegexSet;
 use ring_channel::RingReceiver;
 use tokio::sync::broadcast;
 
 use crate::config::Config;
 use crate::danmaku::DanmakuPacket;
 
+/// Danmaku Middleware
 trait Middleware {
     fn run(&mut self, packet: DanmakuPacket) -> Option<DanmakuPacket>;
 }
 
+/// Middleware Chain
 struct MiddlewareChain {
     middlewares: Vec<Box<dyn Middleware + Send>>,
 }
@@ -42,6 +45,7 @@ impl Middleware for MiddlewareChain {
     }
 }
 
+/// Display incoming danmaku to log
 struct Echo;
 
 impl Middleware for Echo {
@@ -52,6 +56,7 @@ impl Middleware for Echo {
     }
 }
 
+/// Deduplicate danmaku coming within a time window
 struct Dedup(DefaultKeyedRateLimiter<(i64, Arc<str>)>);
 
 impl Dedup {
@@ -82,6 +87,28 @@ impl Middleware for Dedup {
     }
 }
 
+/// Filter danmaku by regex
+struct RegexFilter(RegexSet);
+
+impl RegexFilter {
+    fn new() -> Self {
+        const BLACKLIST: &str = include_str!("../assets/blacklist.txt");
+        Self(RegexSet::new(BLACKLIST.trim().lines()).expect("invalid regex"))
+    }
+}
+
+impl Middleware for RegexFilter {
+    #[tracing::instrument(skip(self))]
+    fn run(&mut self, packet: DanmakuPacket) -> Option<DanmakuPacket> {
+        if self.0.is_match(&packet.danmaku.text) {
+            tracing::info!("drop blacklisted: {}", packet.danmaku);
+            return None;
+        }
+
+        Some(packet)
+    }
+}
+
 #[tracing::instrument(skip(source, sink))]
 pub async fn run_middleware(
     mut source: RingReceiver<DanmakuPacket>,
@@ -92,6 +119,7 @@ pub async fn run_middleware(
     let mut chain = MiddlewareChain::new();
     chain.add(Some(Echo));
     chain.add(Dedup::from_config(&config));
+    chain.add(Some(RegexFilter::new()));
 
     while let Some(packet) = source.next().await {
         if let Some(packet) = chain.run(packet) {

@@ -156,6 +156,7 @@ dependencies = [
  "htmlize",
  "logos",
  "poem",
+ "regex",
  "ring-channel",
  "serde",
  "serde_json",
