@@ -6,8 +6,6 @@ services:
     env_file:
       - .env
     environment:
-      - WSR_ENABLE=true
-      - WS_URLS=["ws://danmaku-server:5098/onebot"]
       - NAPCAT_UID=1000
       - NAPCAT_GID=1000
     volumes:
@@ -15,6 +13,7 @@ services:
       - ./napcat/data:/app/.config/QQ
       - ./napcat/logs:/app/napcat/logs
     restart: always
+    mem_limit: 200m
     depends_on:
       - danmaku-server
 

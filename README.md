@@ -17,19 +17,23 @@ graph LR
 
 建议使用 Docker 进行部署。
 
-项目根目录下的 [`docker-compose.yml`](./docker-compose.yml) 文件包含了弹幕服务及 NapCat 上游的配置。在启动前，请先创建 `.env` 环境变量文件，可通过复制模板 `.env.template` 文件进行初始化：
+项目根目录下的 [`docker-compose.yml`](./docker-compose.yml) 文件包含了弹幕服务及 NapCat 上游的配置。
+
+在启动前，运行 `setup.sh` 脚本以创建配置文件：
 
 ```bash
-cp .env.template .env
+./setup.sh <NapCat 账号>
 ```
 
-根据需要修改 `.env` 中的配置，填写 NapCat 登录账号信息：
+`setup.sh` 脚本将创建 `.env` 文件，其中包含了弹幕服务的配置。接下来根据需要修改 `.env` 中的配置：
 
 ```env
 ACCOUNT=<NapCat 账号>
 RUST_LOG=info
 DANMAKU_LISTEN=0.0.0.0
 DANMAKU_PORT=5098
+DANMAKU_RATE_LIMIT=25
+DANMAKU_DEDUP_WINDOW=-1
 ```
 
 完成配置后，通过以下命令启动服务：
