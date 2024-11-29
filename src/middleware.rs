@@ -25,8 +25,10 @@ impl MiddlewareChain {
         }
     }
 
-    fn add(&mut self, middleware: impl Middleware + Send + 'static) {
-        self.middlewares.push(Box::new(middleware));
+    fn add(&mut self, middleware: Option<impl Middleware + Send + 'static>) {
+        if let Some(middleware) = middleware {
+            self.middlewares.push(Box::new(middleware));
+        }
     }
 }
 
@@ -43,7 +45,7 @@ impl Middleware for MiddlewareChain {
 struct Echo;
 
 impl Middleware for Echo {
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self, packet))]
     fn run(&mut self, packet: DanmakuPacket) -> Option<DanmakuPacket> {
         tracing::info!("{} -> {}", packet.group, packet.danmaku);
         Some(packet)
@@ -53,10 +55,14 @@ impl Middleware for Echo {
 struct Dedup(DefaultKeyedRateLimiter<(i64, Arc<str>)>);
 
 impl Dedup {
-    fn from_config(config: &Config) -> Self {
-        Self(DefaultKeyedRateLimiter::keyed(
-            Quota::with_period(Duration::from_secs(config.dedup_window)).expect("invalid quota"),
-        ))
+    fn from_config(config: &Config) -> Option<Self> {
+        if config.dedup_window <= 0 {
+            return None;
+        }
+        let duration = Duration::from_secs(config.dedup_window as u64);
+        Some(Self(DefaultKeyedRateLimiter::keyed(
+            Quota::with_period(duration).expect("invalid quota"),
+        )))
     }
 }
 
@@ -84,7 +90,7 @@ pub async fn run_middleware(
     let config = Config::load();
 
     let mut chain = MiddlewareChain::new();
-    chain.add(Echo);
+    chain.add(Some(Echo));
     chain.add(Dedup::from_config(&config));
 
     while let Some(packet) = source.next().await {

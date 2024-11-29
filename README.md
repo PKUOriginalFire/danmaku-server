@@ -108,9 +108,12 @@ ws://<danmaku-server>:5098/onebot
 
 | 环境变量 | 默认值 | 描述 |
 | --- | --- | --- |
+| `ACCOUNT` | 无 | NapCat 账号 |
+| `RUST_LOG` | 无 | 日志级别 |
 | `DANMAKU_LISTEN` | 0.0.0.0 | 弹幕服务监听地址 |
 | `DANMAKU_PORT` | 5098 | 弹幕服务监听端口 |
 | `DANMAKU_RATE_LIMIT` | 25 | 弹幕发送速率限制（每秒） |
+| `DANMAKU_DEDUP_WINDOW` | -1 | 弹幕去重窗口大小（秒），-1 表示不去重 |
 
 ## 安全性
 

@@ -23,8 +23,8 @@ pub struct Config {
     pub max_length: usize,
 
     /// Danmaku deduplication window (in seconds)
-    #[envconfig(from = "DANMAKU_DEDUP_WINDOW", default = "5")]
-    pub dedup_window: u64,
+    #[envconfig(from = "DANMAKU_DEDUP_WINDOW", default = "-1")]
+    pub dedup_window: i32,
 }
 
 impl Config {
