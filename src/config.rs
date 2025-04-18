@@ -25,6 +25,10 @@ pub struct Config {
     /// Danmaku deduplication window (in seconds)
     #[envconfig(from = "DANMAKU_DEDUP_WINDOW", default = "-1")]
     pub dedup_window: i32,
+
+    /// Official QQBot Secret
+    #[envconfig(from = "DANMAKU_BOT_SECRET", default = "0")]
+    pub bot_secret: String,
 }
 
 impl Config {

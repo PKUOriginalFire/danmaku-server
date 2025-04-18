@@ -6,11 +6,13 @@ license = "Apache-2.0"
 repository = "https://github.com/PKUOriginalFire/danmaku-server"
 
 [dependencies]
+ed25519-dalek = "2.1.1"
 envconfig = "0.11.0"
 eyre = "0.6.12"
 futures = "0.3.31"
 futures-util = "0.3.31"
 governor = { version = "0.7.0", default-features = false, features = ["std", "dashmap"] }
+hex = "0.4.3"
 htmlize = { version = "1.0.5", features = ["unescape"] }
 logos = "0.14.2"
 poem = { version = "3.1.5", features = ["websocket"] }

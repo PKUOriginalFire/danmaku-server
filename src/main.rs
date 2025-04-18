@@ -17,6 +17,7 @@ mod config;
 mod danmaku;
 mod middleware;
 mod onebot;
+mod webhook;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -53,6 +54,11 @@ async fn main() -> Result<()> {
         .at("/:id", get(index))
         .at("/client/:id", get(client))
         .at("/onebot", get(onebot::endpoint.data(source.clone())))
+        .at(
+            "/webhook",
+            get(webhook::endpoint.data(source.clone()))
+                .post(webhook::endpoint.data(source.clone())),
+        )
         .at(
             "/danmaku/:id",
             get(danmaku::endpoint
