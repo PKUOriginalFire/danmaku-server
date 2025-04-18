@@ -21,7 +21,7 @@ mod webhook;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenvy::dotenv()?;
+    dotenvy::dotenv().ok();
 
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
