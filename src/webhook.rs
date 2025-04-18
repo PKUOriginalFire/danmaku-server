@@ -1,6 +1,7 @@
 //! Official QQ bot WebHook
 
 use ed25519_dalek::{ed25519::signature::SignerMut, SecretKey, SigningKey};
+use eyre::Result;
 use poem::{handler, web::Json, IntoResponse};
 use serde::{Deserialize, Serialize};
 
@@ -26,6 +27,7 @@ impl<'de, const V: u8> Deserialize<'de> for Op<V> {
 #[serde(untagged)]
 enum Payload {
     Dispatch { op: Op<0>, d: serde_json::Value },
+    Heartbeat { op: Op<1>, d: i64 },
     Validate { op: Op<13>, d: Validate },
 }
 
@@ -75,9 +77,13 @@ pub async fn endpoint(Json(payload): Json<Payload>) -> impl IntoResponse {
             })
             .into_response()
         }
+        Payload::Heartbeat { d, .. } => {
+            tracing::debug!("heartbeat: {:?}", d);
+            Json(serde_json::json!({ "op": 11, "d": d })).into_response()
+        }
         Payload::Dispatch { d, .. } => {
             tracing::debug!("dispatch: {:?}", d);
-            Json(serde_json::json!({})).into_response()
+            Json(serde_json::json!({ "op": 12, "d": 0 })).into_response()
         }
     }
 }

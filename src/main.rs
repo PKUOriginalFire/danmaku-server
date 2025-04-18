@@ -5,7 +5,7 @@ use futures::FutureExt;
 use poem::listener::TcpListener;
 use poem::middleware::{NormalizePath, TrailingSlash};
 use poem::web::Html;
-use poem::{get, handler, EndpointExt, IntoResponse, Route, Server};
+use poem::{get, handler, post, EndpointExt, IntoResponse, Route, Server};
 use ring_channel::ring_channel;
 use tokio::sync::broadcast;
 use tracing_subscriber::EnvFilter;
@@ -21,6 +21,8 @@ mod webhook;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    dotenvy::dotenv()?;
+
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .init();
@@ -54,11 +56,7 @@ async fn main() -> Result<()> {
         .at("/:id", get(index))
         .at("/client/:id", get(client))
         .at("/onebot", get(onebot::endpoint.data(source.clone())))
-        .at(
-            "/webhook",
-            get(webhook::endpoint.data(source.clone()))
-                .post(webhook::endpoint.data(source.clone())),
-        )
+        .at("/webhook", post(webhook::endpoint.data(source.clone())))
         .at(
             "/danmaku/:id",
             get(danmaku::endpoint
