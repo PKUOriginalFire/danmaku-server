@@ -2,8 +2,18 @@
 
 use ed25519_dalek::{ed25519::signature::SignerMut, SecretKey, SigningKey};
 use eyre::Result;
-use poem::{handler, web::Json, IntoResponse};
+use poem::{
+    handler,
+    web::{Data, Json},
+    IntoResponse,
+};
+use ring_channel::RingSender;
 use serde::{Deserialize, Serialize};
+
+use crate::{
+    config::Config,
+    danmaku::{Danmaku, DanmakuPacket},
+};
 
 /// Integer tag support from https://github.com/serde-rs/serde/issues/745#issuecomment-1450072069
 #[derive(Debug)]
@@ -26,9 +36,19 @@ impl<'de, const V: u8> Deserialize<'de> for Op<V> {
 #[allow(dead_code)]
 #[serde(untagged)]
 enum Payload {
-    Dispatch { op: Op<0>, d: serde_json::Value },
-    Heartbeat { op: Op<1>, d: i64 },
-    Validate { op: Op<13>, d: Validate },
+    Dispatch {
+        id: String,
+        op: Op<0>,
+        d: serde_json::Value,
+    },
+    Heartbeat {
+        op: Op<1>,
+        d: i64,
+    },
+    Validate {
+        op: Op<13>,
+        d: Validate,
+    },
 }
 
 #[derive(Deserialize, Debug)]
@@ -43,10 +63,25 @@ struct Sign {
     signature: String,
 }
 
+#[derive(Deserialize, Debug)]
+struct Message {
+    content: Option<String>,
+    channel_id: String,
+    author: User,
+}
+
+#[derive(Deserialize, Debug)]
+struct User {
+    username: String,
+}
+
 #[handler]
 #[tracing::instrument(skip_all)]
-pub async fn endpoint(Json(payload): Json<Payload>) -> impl IntoResponse {
-    let config = crate::config::Config::load();
+pub async fn endpoint(
+    Json(payload): Json<Payload>,
+    Data(sink): Data<&RingSender<DanmakuPacket>>,
+) -> impl IntoResponse {
+    let config = Config::load();
 
     tracing::debug!("payload: {:?}", payload);
 
@@ -78,12 +113,51 @@ pub async fn endpoint(Json(payload): Json<Payload>) -> impl IntoResponse {
             .into_response()
         }
         Payload::Heartbeat { d, .. } => {
-            tracing::debug!("heartbeat: {:?}", d);
             Json(serde_json::json!({ "op": 11, "d": d })).into_response()
         }
-        Payload::Dispatch { d, .. } => {
-            tracing::debug!("dispatch: {:?}", d);
+        Payload::Dispatch { id, d, .. } => {
+            if id.starts_with("MESSAGE_CREATE") {
+                match receive_message(&d, &config) {
+                    Ok(Some(packet)) => {
+                        sink.send(packet).expect("all middleware tasks are gone");
+                    }
+                    Ok(None) => {}
+                    Err(e) => tracing::error!("failed to handle message: {}", e),
+                }
+            }
             Json(serde_json::json!({ "op": 12, "d": 0 })).into_response()
         }
     }
+}
+
+#[tracing::instrument]
+fn receive_message(data: &serde_json::Value, config: &Config) -> Result<Option<DanmakuPacket>> {
+    let msg: Message = serde_json::from_value(data.clone())?;
+
+    thread_local! {
+        // clean @user mention
+        static RE: regex::Regex = regex::Regex::new(r"^<@!?[0-9]+>").unwrap();
+    }
+
+    if let Some(message) = msg.content {
+        let message = RE.with(|re| re.replace_all(&message, ""));
+        let message = message.trim();
+        if message.chars().count() > config.max_length {
+            return Ok(None);
+        }
+        let sender = Some(msg.author.username.into());
+        tracing::debug!("{:?} -> {}", sender, message);
+
+        let danmaku = Danmaku {
+            text: message.into(),
+            color: None, // TODO: customize
+            size: None,
+            sender,
+        };
+        return Ok(Some(DanmakuPacket {
+            group: msg.channel_id.parse()?,
+            danmaku,
+        }));
+    }
+    Ok(None)
 }
