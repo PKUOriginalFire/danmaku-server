@@ -40,6 +40,14 @@ http://<danmaku-server>:5098/<group>
 http://<danmaku-server>:5098/<group>?defaultColor=white&defaultSize=40
 ```
 
+### 网页弹幕调试
+
+在以下地址可以打开相应群组的弹幕调试页面。该页面以列表形式显示该群组下的弹幕消息，并提供发送弹幕的功能。
+
+```text
+http://<danmaku-server>:5098/client/<group>
+```
+
 ### 弹幕客户端
 
 服务启动后，WebSocket 服务将在本地 `5098` 端口（可通过环境变量自定义）监听客户端连接。客户端可以通过以下 WebSocket 地址连接至弹幕服务：
