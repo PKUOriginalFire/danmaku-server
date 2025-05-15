@@ -10,6 +10,7 @@ use poem::web::{Data, Path, RemoteAddr};
 use poem::{handler, IntoResponse};
 use ring_channel::RingSender;
 use serde::{Deserialize, Serialize};
+use smol_str::SmolStr;
 use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::RecvError;
 
@@ -25,7 +26,7 @@ pub struct Danmaku {
 
 #[derive(Clone, Debug)]
 pub struct DanmakuPacket {
-    pub group: i64,
+    pub group: SmolStr,
     pub danmaku: Danmaku,
 }
 
@@ -54,12 +55,12 @@ impl Display for Danmaku {
 pub async fn endpoint(
     ws: WebSocket,
     peer: &RemoteAddr,
-    Path(group): Path<i64>,
+    Path(group): Path<SmolStr>,
     Data(source): Data<&Arc<broadcast::Receiver<DanmakuPacket>>>,
     Data(sink): Data<&RingSender<DanmakuPacket>>,
 ) -> impl IntoResponse {
     let peer = peer.clone();
-    tracing::info!("connection from {} to group {}", peer, group);
+    tracing::info!("connection from {} to group {}", peer, &group);
 
     let mut source = source.resubscribe();
     let sink = sink.clone();
@@ -97,6 +98,7 @@ pub async fn endpoint(
 
                             if let Ok(danmaku) = serde_json::from_str::<Danmaku>(&msg) {
                                 if danmaku.text.chars().count() > config.max_length { continue; }
+                                let group = group.clone();
                                 let packet = DanmakuPacket { group, danmaku };
                                 sink.send(packet).expect("all middleware tasks are gone");
                             }

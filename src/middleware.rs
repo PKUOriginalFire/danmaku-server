@@ -6,6 +6,7 @@ use futures::StreamExt;
 use governor::{DefaultKeyedRateLimiter, Quota};
 use regex::RegexSet;
 use ring_channel::RingReceiver;
+use smol_str::SmolStr;
 use tokio::sync::broadcast;
 
 use crate::config::Config;
@@ -57,7 +58,7 @@ impl Middleware for Echo {
 }
 
 /// Deduplicate danmaku coming within a time window
-struct Dedup(DefaultKeyedRateLimiter<(i64, Arc<str>)>);
+struct Dedup(DefaultKeyedRateLimiter<(SmolStr, Arc<str>)>);
 
 impl Dedup {
     fn from_config(config: &Config) -> Option<Self> {
@@ -76,7 +77,7 @@ impl Middleware for Dedup {
     fn run(&mut self, packet: DanmakuPacket) -> Option<DanmakuPacket> {
         if self
             .0
-            .check_key(&(packet.group, packet.danmaku.text.clone()))
+            .check_key(&(packet.group.clone(), packet.danmaku.text.clone()))
             .is_ok()
         {
             Some(packet)

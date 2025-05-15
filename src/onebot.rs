@@ -7,6 +7,7 @@ use poem::web::{Data, RemoteAddr};
 use poem::{handler, IntoResponse};
 use ring_channel::RingSender;
 use serde::Deserialize;
+use smol_str::ToSmolStr;
 
 use crate::config::Config;
 use crate::danmaku::{Danmaku, DanmakuPacket};
@@ -147,6 +148,7 @@ async fn handle_message_event(message: String, config: &Config) -> Result<Option
                 size: None,
                 sender,
             };
+            let group = group.to_smolstr();
             let packet = DanmakuPacket { group, danmaku };
             return Ok(Some(packet));
         }
