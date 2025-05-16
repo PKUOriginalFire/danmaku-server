@@ -77,7 +77,7 @@ struct User {
 
 #[handler]
 #[tracing::instrument(skip_all)]
-pub async fn endpoint(
+pub async fn webhook(
     Json(payload): Json<Payload>,
     Data(sink): Data<&RingSender<DanmakuPacket>>,
 ) -> impl IntoResponse {

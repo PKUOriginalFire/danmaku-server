@@ -55,11 +55,12 @@ async fn main() -> Result<()> {
     let app = Route::new()
         .at("/:id", get(index))
         .at("/client/:id", get(client))
-        .at("/onebot", get(onebot::endpoint.data(source.clone())))
-        .at("/webhook", post(webhook::endpoint.data(source.clone())))
+        .at("/onebot", get(onebot::onebot.data(source.clone())))
+        .at("/webhook", post(webhook::webhook.data(source.clone())))
+        .at("/danmaku", get(danmaku::general.data(source.clone())))
         .at(
             "/danmaku/:id",
-            get(danmaku::endpoint
+            get(danmaku::client
                 .data(source)
                 .data(Arc::new(sink.subscribe()))),
         )

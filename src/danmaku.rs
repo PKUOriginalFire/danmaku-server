@@ -24,7 +24,7 @@ pub struct Danmaku {
     pub sender: Option<Arc<str>>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DanmakuPacket {
     pub group: SmolStr,
     pub danmaku: Danmaku,
@@ -52,7 +52,7 @@ impl Display for Danmaku {
 
 #[handler]
 #[tracing::instrument(skip(ws, sink))]
-pub async fn endpoint(
+pub async fn client(
     ws: WebSocket,
     peer: &RemoteAddr,
     Path(group): Path<SmolStr>,
@@ -100,6 +100,67 @@ pub async fn endpoint(
                                 if danmaku.text.chars().count() > config.max_length { continue; }
                                 let group = group.clone();
                                 let packet = DanmakuPacket { group, danmaku };
+                                sink.send(packet).expect("all middleware tasks are gone");
+                            }
+                        }
+                        Message::Ping(payload) => {
+                            let _ = socket.send(Message::Pong(payload)).await;
+                            tracing::debug!("pong");
+                        }
+                        Message::Close(close) => {
+                            tracing::info!("connection from {} closed: {:?}", peer, close);
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+
+                // Ping
+                _ = ping.tick() => {
+                    let _ = socket.send(Message::Ping(vec![])).await;
+                    tracing::debug!("ping");
+                }
+
+                // On error
+                else => { break }
+            }
+        }
+        if let Err(e) = socket.close().await {
+            tracing::error!("failed to close connection: {}", e);
+        }
+    })
+}
+
+#[handler]
+#[tracing::instrument(skip(ws, sink))]
+pub async fn general(
+    ws: WebSocket,
+    peer: &RemoteAddr,
+    Data(sink): Data<&RingSender<DanmakuPacket>>,
+) -> impl IntoResponse {
+    let peer = peer.clone();
+    tracing::info!("connection from {}", peer);
+
+    let sink = sink.clone();
+
+    let config = Config::load();
+    ws.on_upgrade(move |mut socket| async move {
+        let rate_limiter = RateLimiter::direct(Quota::per_second(config.rate_limit));
+        let mut ping = tokio::time::interval(Duration::from_secs(30));
+        loop {
+            tokio::select! {
+                // From client
+                Some(Ok(msg)) = socket.next() => {
+                    tracing::debug!("got message: {:?}", msg);
+                    match msg {
+                        Message::Text(msg) => {
+                            if rate_limiter.check().is_err() {
+                                tracing::warn!("rate limit exceeded, closing connection");
+                                break; // rate limit exceeded, close the connection
+                            }
+
+                            if let Ok(packet) = serde_json::from_str::<DanmakuPacket>(&msg) {
+                                if packet.danmaku.text.chars().count() > config.max_length { continue; }
                                 sink.send(packet).expect("all middleware tasks are gone");
                             }
                         }
