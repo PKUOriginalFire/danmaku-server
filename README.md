@@ -69,19 +69,19 @@ type Danmaku = {
 }
 ```
 
-客户端也可以**向服务端发送相同格式的弹幕消息**，服务端会将其广播至同一群组下的所有客户端（包括发送该消息的客户端）。
-
 ### OneBot 上游
 
-弹幕服务通过 OneBot 11 反向 WebSocket 协议与上游连接，接收消息。连接地址与弹幕服务在同一端口下，为：
+弹幕服务通过 OneBot 11 反向 WebSocket 协议与上游连接，接收消息。为确保安全性，OneBot 上游与弹幕客户端使用不同的端口，默认为 `5099`：
 
 ```text
-ws://<danmaku-server>:5098/onebot
+ws://<danmaku-server>:5099/onebot
 ```
 
 OneBot 上游会监听群消息，并将其转发至弹幕服务。群组标识符为群号。例如，群号为 123456 的群组中的消息将转发到 `ws://<danmaku-server>:5098/danmaku/123456`。
 
 ### WebHook 上游
+
+> WebHook 上游尚未实现完成。
 
 WebHook 上游用于对接腾讯官方 bot API。在官方 bot 控制面板中配置 WebHook 地址为：
 
@@ -97,7 +97,25 @@ https://<danmaku-server>/webhook
 
 ### 其他上游
 
-其他上游可以通过与弹幕客户端相同的 WebSocket 地址连接至弹幕服务。参考上文的 [弹幕客户端](#弹幕客户端) 部分。
+其他上游可以通过以下地址连接至弹幕服务。为确保安全性，上游与弹幕客户端使用不同的端口，默认为 `5099`：
+
+```text
+ws://<danmaku-server>:5099/danmaku
+```
+
+弹幕上游可以将弹幕以 JSON 格式的 WebSocket 文本消息发送至服务端。消息结构如下：
+
+```typescript
+type DanmakuPacket = {
+  group: string;
+  danmaku: {
+    text: string;
+    color?: string;
+    size?: number;
+    sender?: string;
+  };
+}
+```
 
 ## 功能
 
@@ -122,15 +140,15 @@ https://<danmaku-server>/webhook
 | `RUST_LOG` | 无 | 日志级别 |
 | `DANMAKU_LISTEN` | 0.0.0.0 | 弹幕服务监听地址 |
 | `DANMAKU_PORT` | 5098 | 弹幕服务监听端口 |
-| `DANMAKU_RATE_LIMIT` | 25 | 弹幕发送速率限制（每秒） |
+| `DANMAKU_PRIVATE_PORT` | 6099 | 弹幕上游服务监听端口 |
 | `DANMAKU_DEDUP_WINDOW` | -1 | 弹幕去重窗口大小（秒），-1 表示不去重 |
 | `DANMAKU_BOT_SECRET` | 无 | WebHook 上游的密钥 |
 
 ## 安全性
 
-弹幕服务本身不提供内置的身份验证功能。建议在公开网络环境下通过反向代理等手段为其添加身份验证，以防止未经授权的访问。
+为保证安全性，弹幕服务会在两个不同的端口开启服务，其中一个仅有接收弹幕的功能，用于部署到公网中；另一个可以发送弹幕，用于连接在同一内网中的上游。这两个端口分别由 `DANMAKU_PORT` 和 `DANMAKU_PRIVATE_PORT` 环境变量进行配置。
 
-为防止恶意请求，服务对以客户端形式连接的端点的弹幕发送速率设有限制，默认最多 25 条/秒。超过该限制的连接将被自动关闭。
+弹幕服务本身不提供内置的身份验证功能。如有需要，可以通过反向代理等手段为其添加身份验证，以防止未经授权的访问。
 
 ## 部署案例
 
@@ -182,7 +200,7 @@ services:
             {
                 "name": "danmaku",
                 "enable": true,
-                "url": "ws://danmaku-server:5098/onebot",
+                "url": "ws://danmaku-server:5099/onebot",
                 "messagePostFormat": "array",
                 "reportSelfMessage": false,
                 "reconnectInterval": 5000,

@@ -1,5 +1,4 @@
 use std::net::IpAddr;
-use std::num::NonZeroU32;
 use std::sync::{Arc, OnceLock};
 
 use envconfig::Envconfig;
@@ -14,9 +13,9 @@ pub struct Config {
     #[envconfig(from = "DANMAKU_PORT", default = "5098")]
     pub port: u16,
 
-    /// Client message rate limit (per second)
-    #[envconfig(from = "DANMAKU_RATE_LIMIT", default = "25")]
-    pub rate_limit: NonZeroU32,
+    /// Port to listen on
+    #[envconfig(from = "DANMAKU_PRIVATE_PORT", default = "5099")]
+    pub private_port: u16,
 
     // Danmaku max length
     #[envconfig(from = "DANMAKU_MAX_LENGTH", default = "50")]

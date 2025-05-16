@@ -52,24 +52,41 @@ async fn main() -> Result<()> {
     let sink = broadcast::channel::<DanmakuPacket>(32).0;
     tokio::spawn(run_middleware(middle, sink.clone()));
 
+    // public server
     let app = Route::new()
         .at("/:id", get(index))
         .at("/client/:id", get(client))
-        .at("/onebot", get(onebot::onebot.data(source.clone())))
-        .at("/webhook", post(webhook::webhook.data(source.clone())))
-        .at("/danmaku", get(danmaku::general.data(source.clone())))
+        // .at("/webhook", post(webhook::webhook.data(source.clone())))
         .at(
             "/danmaku/:id",
             get(danmaku::client
-                .data(source)
+                .data(source.clone())
                 .data(Arc::new(sink.subscribe()))),
         )
         .with(NormalizePath::new(TrailingSlash::Trim));
 
-    tracing::info!("listening on {}:{}", config.listen, config.port);
-    Server::new(TcpListener::bind((config.listen, config.port)))
-        .run(app)
-        .await?;
+    tracing::info!(
+        "public service listening on {}:{}",
+        config.listen,
+        config.port
+    );
+    let public = Server::new(TcpListener::bind((config.listen, config.port))).run(app);
+
+    // private server
+    let app = Route::new()
+        .at("/onebot", get(onebot::onebot.data(source.clone())))
+        .at("/webhook", post(webhook::webhook.data(source.clone())))
+        .at("/danmaku", get(danmaku::upstream.data(source.clone())))
+        .with(NormalizePath::new(TrailingSlash::Trim));
+
+    tracing::info!(
+        "private listening on {}:{}",
+        config.listen,
+        config.private_port
+    );
+    let private = Server::new(TcpListener::bind((config.listen, config.private_port))).run(app);
+
+    tokio::try_join!(public, private)?;
     Ok(())
 }
 

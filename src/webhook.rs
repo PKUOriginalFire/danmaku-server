@@ -116,6 +116,7 @@ pub async fn webhook(
             Json(serde_json::json!({ "op": 11, "d": d })).into_response()
         }
         Payload::Dispatch { id, d, .. } => {
+            // TODO: check signature by header (https://bot.q.qq.com/wiki/develop/api-v2/dev-prepare/interface-framework/sign.html)
             if id.starts_with("MESSAGE_CREATE") {
                 match receive_message(&d, &config) {
                     Ok(Some(packet)) => {

@@ -4,7 +4,6 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use futures_util::SinkExt;
-use governor::{Quota, RateLimiter};
 use poem::web::websocket::{Message, WebSocket};
 use poem::web::{Data, Path, RemoteAddr};
 use poem::{handler, IntoResponse};
@@ -51,23 +50,18 @@ impl Display for Danmaku {
 }
 
 #[handler]
-#[tracing::instrument(skip(ws, sink))]
+#[tracing::instrument(skip(ws))]
 pub async fn client(
     ws: WebSocket,
-    peer: &RemoteAddr,
+    RemoteAddr(peer): &RemoteAddr,
     Path(group): Path<SmolStr>,
     Data(source): Data<&Arc<broadcast::Receiver<DanmakuPacket>>>,
-    Data(sink): Data<&RingSender<DanmakuPacket>>,
 ) -> impl IntoResponse {
     let peer = peer.clone();
     tracing::info!("connection from {} to group {}", peer, &group);
 
     let mut source = source.resubscribe();
-    let sink = sink.clone();
-
-    let config = Config::load();
     ws.on_upgrade(move |mut socket| async move {
-        let rate_limiter = RateLimiter::direct(Quota::per_second(config.rate_limit));
         let mut ping = tokio::time::interval(Duration::from_secs(30));
         loop {
             tokio::select! {
@@ -90,19 +84,6 @@ pub async fn client(
                 Some(Ok(msg)) = socket.next() => {
                     tracing::debug!("got message: {:?}", msg);
                     match msg {
-                        Message::Text(msg) => {
-                            if rate_limiter.check().is_err() {
-                                tracing::warn!("rate limit exceeded, closing connection");
-                                break; // rate limit exceeded, close the connection
-                            }
-
-                            if let Ok(danmaku) = serde_json::from_str::<Danmaku>(&msg) {
-                                if danmaku.text.chars().count() > config.max_length { continue; }
-                                let group = group.clone();
-                                let packet = DanmakuPacket { group, danmaku };
-                                sink.send(packet).expect("all middleware tasks are gone");
-                            }
-                        }
                         Message::Ping(payload) => {
                             let _ = socket.send(Message::Pong(payload)).await;
                             tracing::debug!("pong");
@@ -133,9 +114,9 @@ pub async fn client(
 
 #[handler]
 #[tracing::instrument(skip(ws, sink))]
-pub async fn general(
+pub async fn upstream(
     ws: WebSocket,
-    peer: &RemoteAddr,
+    RemoteAddr(peer): &RemoteAddr,
     Data(sink): Data<&RingSender<DanmakuPacket>>,
 ) -> impl IntoResponse {
     let peer = peer.clone();
@@ -145,7 +126,6 @@ pub async fn general(
 
     let config = Config::load();
     ws.on_upgrade(move |mut socket| async move {
-        let rate_limiter = RateLimiter::direct(Quota::per_second(config.rate_limit));
         let mut ping = tokio::time::interval(Duration::from_secs(30));
         loop {
             tokio::select! {
@@ -154,11 +134,6 @@ pub async fn general(
                     tracing::debug!("got message: {:?}", msg);
                     match msg {
                         Message::Text(msg) => {
-                            if rate_limiter.check().is_err() {
-                                tracing::warn!("rate limit exceeded, closing connection");
-                                break; // rate limit exceeded, close the connection
-                            }
-
                             if let Ok(packet) = serde_json::from_str::<DanmakuPacket>(&msg) {
                                 if packet.danmaku.text.chars().count() > config.max_length { continue; }
                                 sink.send(packet).expect("all middleware tasks are gone");
