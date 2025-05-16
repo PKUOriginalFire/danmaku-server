@@ -29,10 +29,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set lowercase repo owner
+        id: lower
+        run: echo "REPO_OWNER_LC=$(echo $GITHUB_REPOSITORY_OWNER | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ghcr.io/${{ github.repository_owner }}/danmaku-server:latest
-          platforms: linux/amd64,linux/arm64
+        run: |
+          docker buildx build --platform linux/amd64,linux/arm64 \
+            -t ghcr.io/${REPO_OWNER_LC}/danmaku-server:latest \
+            --push .
