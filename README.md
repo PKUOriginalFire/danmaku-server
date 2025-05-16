@@ -140,7 +140,7 @@ type DanmakuPacket = {
 | `RUST_LOG` | 无 | 日志级别 |
 | `DANMAKU_LISTEN` | 0.0.0.0 | 弹幕服务监听地址 |
 | `DANMAKU_PORT` | 5098 | 弹幕服务监听端口 |
-| `DANMAKU_PRIVATE_PORT` | 6099 | 弹幕上游服务监听端口 |
+| `DANMAKU_PRIVATE_PORT` | 5099 | 弹幕上游服务监听端口 |
 | `DANMAKU_DEDUP_WINDOW` | -1 | 弹幕去重窗口大小（秒），-1 表示不去重 |
 | `DANMAKU_BOT_SECRET` | 无 | WebHook 上游的密钥 |
 
