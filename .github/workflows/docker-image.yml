@@ -35,6 +35,6 @@ jobs:
 
       - name: Build and push Docker image
         run: |
-          docker buildx build --platform linux/amd64,linux/arm64 \
+          docker buildx build --platform linux/amd64 \
             -t ghcr.io/${REPO_OWNER_LC}/danmaku-server:latest \
             --push .
