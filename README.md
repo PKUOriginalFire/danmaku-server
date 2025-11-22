@@ -190,33 +190,7 @@ services:
     restart: always
 ```
 
-**Step 2**: 写入 NapCat 配置文件。将以下内容保存到 `napcat/config/onebot11_<ACCOUNT>.json`，其中 `<ACCOUNT>` 为 QQ 账号：
-
-```json
-{
-    "network": {
-        "websocketClients": [],
-        "websocketServers": [
-            {
-                "name": "danmaku",
-                "enable": true,
-                "url": "ws://danmaku-server:5099/onebot",
-                "messagePostFormat": "array",
-                "reportSelfMessage": false,
-                "reconnectInterval": 5000,
-                "token": "",
-                "debug": false,
-                "heartInterval": 30000
-            }
-        ],
-        "httpClients": [],
-        "httpServers": []
-    },
-    "musicSignUrl": "",
-    "enableLocalFile2Url": false,
-    "parseMultMsg": true
-}
-```
+**Step 2**: 写入 NapCat 配置文件。将 `onebot.template.json` 保存到 `napcat/config/onebot11_<ACCOUNT>.json`，其中 `<ACCOUNT>` 为 QQ 账号
 
 **Step 3**: 将 `.env.template` 文件拷贝为 `.env`，并根据需要修改环境变量。
 

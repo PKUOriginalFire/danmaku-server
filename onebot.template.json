@@ -4,7 +4,7 @@
             {
                 "name": "danmaku",
                 "enable": true,
-                "url": "ws://danmaku-server:5098/onebot",
+                "url": "ws://danmaku-server:5099/onebot",
                 "messagePostFormat": "array",
                 "reportSelfMessage": false,
                 "reconnectInterval": 5000,
