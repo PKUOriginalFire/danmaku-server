@@ -51,7 +51,7 @@
     </div>
     <script type="module">
         import Danmaku from 'danmaku';
-        import { z } from 'zod';
+        import * as z from 'zod';
 
         const configSchema = z.object({
             defaultColor: z.string().catch('white'),
